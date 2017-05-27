@@ -15,7 +15,8 @@ def deleteMatches():
     """Remove all the match records from the database."""
     db=connect()
     cursor=db.cursor()
-    cursor.execute("delete from match;")
+    cursor.execute("update matchRecord set totalMatch=0 , win=0")
+    db.commit()
     db.close()
 
 
@@ -23,8 +24,12 @@ def deletePlayers():
     """Remove all the player records from the database."""
     db = connect()
     cursor = db.cursor()
-    cursor.execute("delete from player;")
     cursor.execute("delete from matchRecord;")
+    db.commit()
+    cursor.execute("delete from match;")
+    db.commit()
+    cursor.execute("delete from player;")
+    db.commit()
     db.close()
 
 
@@ -48,7 +53,12 @@ def registerPlayer(name):
     """
     db = connect()
     cursor = db.cursor()
-    cursor.execute("insert into player(name) values(%s)",(name,))
+    cursor.execute("insert into player(name) values(%s) returning id",(name,))
+    db.commit()
+    cursor.execute("select max(id) from player")
+    id=cursor.fetchone()[0]
+    cursor.execute("insert into matchRecord(id,totalmatch,win) values(%(int)s, %(totalmatch)s, %(win)s)",
+                   {'int':id,'totalmatch':0,'win':0})
     db.commit()
     db.close()
 
@@ -67,7 +77,13 @@ def playerStandings():
         wins: the number of matches the player has won
         matches: the number of matches the player has played
     """
-
+    db=connect()
+    cursor=db.cursor()
+    cursor.execute('select player.id,player.name,matchRecord.win,matchRecord.totalMatch'+
+                   ' from player join matchRecord on player.id=matchRecord.id order by matchRecord.win;')
+    data=cursor.fetchall()
+    db.close()
+    return data
 
 def reportMatch(winner, loser):
     """Records the outcome of a single match between two players.
@@ -76,6 +92,21 @@ def reportMatch(winner, loser):
       winner:  the id number of the player who won
       loser:  the id number of the player who lost
     """
+    db=connect()
+    cursor=db.cursor()
+    cursor.execute('select matchRecord.totalMatch,matchRecord.win from matchRecord where id='+str(winner))
+    winnerTotalMatch,winnerWin=cursor.fetchall()[0]
+    winnerTotalMatch +=1
+    winnerWin +=1
+    cursor.execute('select matchRecord.totalMatch from matchRecord where id=' + str(loser))
+    loserTotalMatch=cursor.fetchall()[0][0]
+    loserTotalMatch +=1
+    cursor.execute('update matchRecord SET totalMatch='+str(winnerTotalMatch)+' ,win='+str(winnerWin)+
+                   ' where id = '+str(winner))
+    cursor.execute('update matchRecord SET totalMatch=' + str(loserTotalMatch) +
+                   ' where id = ' + str(loser))
+    db.commit()
+    db.close()
  
  
 def swissPairings():
@@ -93,5 +124,15 @@ def swissPairings():
         id2: the second player's unique id
         name2: the second player's name
     """
-
+    data=playerStandings()
+    pairs=[]
+    while len(data):
+        x=data.pop()
+        id1=x[0]
+        name1=x[1]
+        y=data.pop()
+        id2=y[0]
+        name2=y[1]
+        pairs.append((id1,name1,id2,name2))
+    return pairs
 
