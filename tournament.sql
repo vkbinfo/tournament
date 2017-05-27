@@ -14,5 +14,5 @@ create TABLE player(id serial primary key,
 create table match(id serial,winner integer references player(id),
         looser integer references player(id)) ;
 
-create table matchRecord(id integer references player,totalMatch integer,
+create table matchRecord(id integer references player(id),totalMatch integer,
                         win integer);
